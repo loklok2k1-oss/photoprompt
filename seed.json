@@ -1,0 +1,253 @@
+[
+  {
+    "id": "anime",
+    "name": "日本動漫風",
+    "cat": "動畫",
+    "subjects": [
+      "人物"
+    ],
+    "tools": [
+      "ChatGPT",
+      "Gemini",
+      "即夢",
+      "Midjourney"
+    ],
+    "tagline": "真人相變日系動畫主角，線條乾淨、眼神明亮。",
+    "promptZh": "將這張照片轉換成日本動漫風格：保留人物的五官特徵、髮型、表情和姿勢，改用乾淨俐落的線條和平塗上色，眼睛放大並加上明亮高光，皮膚平滑柔和，背景簡化成動畫場景的色塊與柔焦，整體色彩鮮明清新。",
+    "promptEn": "Transform this photo into Japanese anime style: keep the person's facial features, hairstyle, expression and pose, redraw with clean line art and flat cel shading, enlarge the eyes with bright highlights, smooth soft skin, simplify the background into soft-focus anime scenery blocks, vivid and fresh colors",
+    "negative": "變形的手指、多餘的肢體、五官走樣、模糊、低解像度、水印、文字 / deformed hands, extra limbs, distorted face, blurry, low-res, watermark, text",
+    "tip": "人像愈清晰、光線愈均勻，轉出嚟嘅五官愈準；側面相建議先裁到半身再上載。",
+    "img": "/images/seed/anime.jpg",
+    "orig": "/images/seed/original.jpg"
+  },
+  {
+    "id": "ghibli",
+    "name": "吉卜力風",
+    "cat": "動畫",
+    "subjects": [
+      "人物",
+      "風景",
+      "旅行"
+    ],
+    "tools": [
+      "ChatGPT",
+      "Gemini",
+      "即夢"
+    ],
+    "tagline": "手繪水彩質感，藍天積雲，成幅相即刻治癒起來。",
+    "promptZh": "將這張照片轉換成吉卜力手繪動畫風格：保留人物樣貌、髮型和構圖，用溫暖柔和的手繪水彩質感重新繪製，天空是飽滿的積雲和漸層藍，植物帶有生機勃勃的綠色筆觸，光線像夏日午後，畫面寧靜治癒。",
+    "promptEn": "Transform this photo into Studio Ghibli hand-drawn animation style: keep the person's likeness, hairstyle and composition, repaint with warm soft hand-painted watercolor texture, full cumulus clouds in a gradient blue sky, lush lively green brushstrokes on plants, summer afternoon light, calm and healing mood",
+    "negative": "陰暗、恐怖、寫實照片感、變形、模糊、水印 / dark, horror, photorealistic, deformed, blurry, watermark",
+    "tip": "戶外相效果最好；如果原相是室內，可以在提示詞後加一句「背景換成藍天草地」。",
+    "img": "/images/seed/ghibli.jpg",
+    "orig": "/images/seed/original.jpg"
+  },
+  {
+    "id": "pixar",
+    "name": "Pixar 3D 風",
+    "cat": "動畫",
+    "subjects": [
+      "人物",
+      "寵物"
+    ],
+    "tools": [
+      "ChatGPT",
+      "Gemini",
+      "即夢",
+      "Midjourney"
+    ],
+    "tagline": "變成立體圓潤的 3D 動畫角色，像電影主角一樣。",
+    "promptZh": "將這張照片轉換成 Pixar 3D 動畫電影風格：保留人物特徵和表情，重新建模成立體圓潤的 3D 角色，眼睛略為放大，皮膚有柔和的次表面散射質感，頭髮一束束分明，背景是電影級景深的 3D 場景，燈光溫暖柔和。",
+    "promptEn": "Transform this photo into a Pixar 3D animated movie character: keep the person's features and expression, remodel into a rounded 3D character, slightly enlarged eyes, soft subsurface-scattering skin, strand-grouped hair, cinematic depth-of-field 3D background, warm soft lighting",
+    "negative": "恐怖谷、寫實照片、變形、低模、水印 / uncanny valley, photorealistic, deformed, low-poly, watermark",
+    "tip": "寵物相一樣好啱用；加一句「眼神望向鏡頭」，出嚟會更生動。",
+    "img": "/images/seed/pixar.jpg",
+    "orig": "/images/seed/original.jpg"
+  },
+  {
+    "id": "chibi",
+    "name": "Q 版",
+    "cat": "動畫",
+    "subjects": [
+      "人物",
+      "寵物"
+    ],
+    "tools": [
+      "ChatGPT",
+      "Gemini",
+      "即夢"
+    ],
+    "tagline": "頭大身細二頭身，做大頭貼同貼紙一流。",
+    "promptZh": "將這張照片轉換成 Q 版（chibi）風格：保留人物髮型、衣服顏色和特徵，改成頭大身細的二頭身可愛角色，眼睛圓大閃亮，腮紅明顯，線條圓潤，顏色粉嫩，背景簡化成可愛的小場景。",
+    "promptEn": "Transform this photo into chibi (Q-version) style: keep the person's hairstyle, clothing colors and features, redraw as a cute super-deformed character with a big head and tiny body, round sparkling eyes, visible blush, rounded lines, pastel colors, simplified cute background scene",
+    "negative": "寫實、恐怖、變形、陰暗、水印 / realistic, horror, deformed, dark, watermark",
+    "tip": "全身相可以保留姿勢；半身相的頭部比例會更誇張，兩種都可愛。",
+    "img": "/images/seed/chibi.jpg",
+    "orig": "/images/seed/original.jpg"
+  },
+  {
+    "id": "watercolor",
+    "name": "水彩風",
+    "cat": "繪畫",
+    "subjects": [
+      "人物",
+      "風景"
+    ],
+    "tools": [
+      "ChatGPT",
+      "Gemini",
+      "Midjourney"
+    ],
+    "tagline": "透明暈染加留白，通透淡雅的手繪紙感。",
+    "promptZh": "將這張照片轉換成水彩畫風格：保留主體輪廓和構圖，用透明水彩的暈染和留白重新繪製，邊緣柔和帶水痕，顏色通透淡雅，背景用大面積濕畫法暈開，帶有手繪紙張的細微紋理。",
+    "promptEn": "Transform this photo into a watercolor painting: keep the subject's outline and composition, repaint with transparent watercolor washes and white space, soft edges with water blooms, clear and elegant colors, wet-on-wet background wash, subtle handmade paper texture",
+    "negative": "數碼感、油膩、過度銳利、變形、水印 / digital look, greasy, oversharpened, deformed, watermark",
+    "tip": "風景和建築相最出色；人像建議揀光線柔和的相，避免強烈陰影。",
+    "img": "/images/seed/watercolor.jpg",
+    "orig": "/images/seed/original.jpg"
+  },
+  {
+    "id": "oil",
+    "name": "古典油畫風",
+    "cat": "繪畫",
+    "subjects": [
+      "人物"
+    ],
+    "tools": [
+      "ChatGPT",
+      "Gemini",
+      "Midjourney"
+    ],
+    "tagline": "厚重筆觸加倫勃朗式布光，博物館級肖像感。",
+    "promptZh": "將這張照片轉換成古典油畫肖像風格：保留人物樣貌和姿勢，用厚重可見的筆觸和深沉的色調重新繪製，明暗對比像倫勃朗式布光，背景改成深色漸層，畫面帶有畫布紋理和博物館級的莊重感。",
+    "promptEn": "Transform this photo into a classical oil painting portrait: keep the person's likeness and pose, repaint with thick visible brushstrokes and deep rich tones, Rembrandt-style chiaroscuro lighting, dark gradient background, canvas texture, dignified museum quality",
+    "negative": "卡通、數碼平滑、變形、模糊、水印 / cartoon, digital smooth, deformed, blurry, watermark",
+    "tip": "半身肖像效果最正；穿深色衫影的相，出嚟的古典味更濃。",
+    "img": "/images/seed/oil.jpg",
+    "orig": "/images/seed/original.jpg"
+  },
+  {
+    "id": "manga",
+    "name": "漫畫線稿風",
+    "cat": "繪畫",
+    "subjects": [
+      "人物"
+    ],
+    "tools": [
+      "ChatGPT",
+      "Gemini",
+      "即夢"
+    ],
+    "tagline": "黑白墨線加網點紙，變成漫畫入面的人物。",
+    "promptZh": "將這張照片轉換成黑白日本漫畫線稿風格：保留人物樣貌、表情和構圖，只用黑色墨線和網點紙效果重新繪製，頭髮和衣服用排線表現陰影，背景改成漫畫式的簡化線條，去掉所有顏色。",
+    "promptEn": "Transform this photo into black-and-white Japanese manga line art: keep the person's likeness, expression and composition, redraw using only black ink lines and screentone effects, hatching for shadows on hair and clothing, simplified manga-style background lines, remove all color",
+    "negative": "彩色、寫實灰階照片、變形、模糊、水印 / color, grayscale photo, deformed, blurry, watermark",
+    "tip": "輪廓分明的相效果最好；出圖之後仲可以自己上色，當填色頁玩。",
+    "img": "/images/seed/manga.jpg",
+    "orig": "/images/seed/original.jpg"
+  },
+  {
+    "id": "film",
+    "name": "復古菲林風",
+    "cat": "攝影",
+    "subjects": [
+      "人物",
+      "旅行",
+      "風景"
+    ],
+    "tools": [
+      "ChatGPT",
+      "Gemini"
+    ],
+    "tagline": "90 年代菲林色調，暖黃、顆粒、淡淡漏光。",
+    "promptZh": "將這張照片重新演繹成 1990 年代菲林相風格：保留人物和構圖，加上 Kodak Portra 般溫暖微黃的色調、柔和對比、輕微顆粒感和淡淡的漏光，膚色自然，畫面帶有懷舊的生活氣息。",
+    "promptEn": "Reinterpret this photo as a 1990s film photograph: keep the person and composition, add warm slightly-yellow Kodak Portra tones, soft contrast, fine film grain and a hint of light leak, natural skin tones, nostalgic everyday mood",
+    "negative": "數碼銳利、高清 HDR、過度飽和、變形、水印 / digital sharpness, HDR, oversaturated, deformed, watermark",
+    "tip": "唔使大改構圖，重點在色調；本身已經是寫實風格的相最夾。",
+    "img": "/images/seed/film.jpg",
+    "orig": "/images/seed/original.jpg"
+  },
+  {
+    "id": "korean",
+    "name": "韓系清新風",
+    "cat": "攝影",
+    "subjects": [
+      "人物"
+    ],
+    "tools": [
+      "ChatGPT",
+      "Gemini",
+      "即夢"
+    ],
+    "tagline": "粉白通透、柔光奶油背景，像韓劇劇照一樣乾淨明亮。",
+    "promptZh": "將這張照片修成韓系清新風格：保留人物樣貌和構圖，整體提亮並降低對比，色調偏粉白通透，膚色白皙自然帶少許血色，背景柔焦奶油化，光線像陰天的柔光，畫面乾淨明亮像韓劇劇照。",
+    "promptEn": "Restyle this photo into a Korean fresh aesthetic: keep the person's likeness and composition, brighten overall and lower contrast, soft pinkish-white translucent tones, fair natural skin with a hint of blush, creamy blurred background, soft overcast daylight, clean and bright like a K-drama still",
+    "negative": "濃艷、過度磨皮、陰暗、變形、水印 / heavy colors, over-smoothed skin, dark, deformed, watermark",
+    "tip": "自拍和半身相最啱；如果出嚟太白，加一句「保留自然膚色」再試。",
+    "img": "/images/seed/korean.jpg",
+    "orig": "/images/seed/original.jpg"
+  },
+  {
+    "id": "cinema",
+    "name": "電影感劇照風",
+    "cat": "攝影",
+    "subjects": [
+      "人物",
+      "旅行"
+    ],
+    "tools": [
+      "ChatGPT",
+      "Gemini",
+      "Midjourney"
+    ],
+    "tagline": "青橙調色加淺景深，普通街景變電影定格。",
+    "promptZh": "將這張照片調成電影劇照風格：保留人物和場景，用青橙色調（teal and orange）重新調色，壓暗陰影、提亮高光，加入淺景深和輕微的電影顆粒，構圖保留呼吸感，畫面像院線電影的一格定格。",
+    "promptEn": "Grade this photo into a cinematic movie still: keep the person and scene, apply teal-and-orange color grading, deepen shadows and lift highlights, add shallow depth of field and fine film grain, airy composition, like a frame from a feature film",
+    "negative": "平淡色調、過度銳化、變形、水印、字幕 / flat colors, oversharpened, deformed, watermark, subtitles",
+    "tip": "本身有故事感的街拍、旅行相最出色；橫相效果通常比直相好。",
+    "img": "/images/seed/cinema.jpg",
+    "orig": "/images/seed/original.jpg"
+  },
+  {
+    "id": "cyberpunk",
+    "name": "賽博龐克風",
+    "cat": "數碼",
+    "subjects": [
+      "人物"
+    ],
+    "tools": [
+      "ChatGPT",
+      "Gemini",
+      "Midjourney",
+      "即夢"
+    ],
+    "tagline": "雨夜霓虹、粉藍光影，瞬間去到未來都市。",
+    "promptZh": "將這張照片轉換成賽博龐克風格：保留人物樣貌和姿勢，場景換成雨夜的未來都市，霓虹燈以粉紅和青藍色打在人物臉上和頭髮邊緣，空氣帶有薄霧和反光地面，衣服加入少許科技感細節，畫面像電影劇照。",
+    "promptEn": "Transform this photo into cyberpunk style: keep the person's likeness and pose, move the scene to a rainy futuristic city at night, pink and cyan neon light falling on the face and hair edges, misty air and reflective ground, subtle tech details on clothing, cinematic still look",
+    "negative": "日光、鄉村感、變形、模糊、水印、文字 / daylight, rural, deformed, blurry, watermark, text",
+    "tip": "夜晚影的相最夾；日光相可以在提示詞後加一句「改成夜晚場景」。",
+    "img": "/images/seed/cyberpunk.jpg",
+    "orig": "/images/seed/original.jpg"
+  },
+  {
+    "id": "pixel",
+    "name": "像素風",
+    "cat": "數碼",
+    "subjects": [
+      "人物",
+      "寵物"
+    ],
+    "tools": [
+      "ChatGPT",
+      "Gemini",
+      "即夢"
+    ],
+    "tagline": "16-bit 復古遊戲畫面，變成 RPG 角色。",
+    "promptZh": "將這張照片轉換成 16-bit 像素藝術風格：保留人物特徵、髮型和衣服顏色，用清晰的像素方格重新繪製，限制在 32 色以內的復古遊戲色盤，背景改成像素風景，像經典 RPG 遊戲的角色畫面。",
+    "promptEn": "Transform this photo into 16-bit pixel art: keep the person's features, hairstyle and clothing colors, redraw with crisp pixel clusters, limited retro game palette of 32 colors or fewer, pixel scenery background, like a classic RPG character scene",
+    "negative": "平滑漸變、寫實、模糊放大、水印 / smooth gradients, photorealistic, blurry upscale, watermark",
+    "tip": "主體愈簡單愈靚；背景太雜會亂，建議先裁走雜物再上載。",
+    "img": "/images/seed/pixel.jpg",
+    "orig": "/images/seed/original.jpg"
+  }
+]

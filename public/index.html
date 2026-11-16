@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>照片提示詞網站</title>
+<style>
+  :root{--ink:#22201d;--muted:#6b655c;--paper:#fdf9f0;--card:#fff;--line:#e8dfd2;--accent:#d96c4f;--accent2:#3f7d6b;--soft:#f5ecdd}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"PingFang HK","Microsoft JhengHei",sans-serif;background:var(--paper);color:var(--ink);line-height:1.6}
+  header{padding:28px 16px 12px;max-width:1080px;margin:0 auto}
+  h1{margin:0;font-size:28px;letter-spacing:.02em}
+  .sub{color:var(--muted);margin:6px 0 0;font-size:15px}
+  .intro{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:14px 0 0;font-size:14px}
+  .intro ol{margin:6px 0 0;padding-left:20px}
+  main{max-width:1080px;margin:0 auto;padding:8px 16px 40px}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0}
+  .toolbar input[type=search]{flex:1 1 220px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;background:#fff}
+  .toolbar select{padding:10px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:#fff}
+  .btn{border:0;border-radius:10px;padding:10px 16px;font-size:15px;cursor:pointer;background:var(--accent);color:#fff}
+  .btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .btn.green{background:var(--accent2)}
+  .btn.small{padding:6px 10px;font-size:13px}
+  .btn:disabled{opacity:.55;cursor:default}
+  .pills{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+  .pill{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 14px;font-size:14px;cursor:pointer}
+  .pill.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .count{color:var(--muted);font-size:14px;margin:0 0 12px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+  .ba{position:relative;aspect-ratio:4/3;overflow:hidden;background:#e9e2d6;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:none}
+  .ba img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+  .ba img.ba-before{opacity:0;pointer-events:none}
+  .ba.show-orig img.ba-before{opacity:1}
+  .ba.show-orig img.ba-after{opacity:0}
+  .ba-badge{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.65);color:#fff;font-size:12px;padding:3px 8px;border-radius:999px}
+  .ba-bar{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:linear-gradient(transparent,rgba(0,0,0,.45));color:#fff;font-size:12px}
+  .ba-toggle{display:flex;gap:6px}
+  .ba-toggle button{border:1px solid rgba(255,255,255,.7);background:rgba(0,0,0,.4);color:#fff;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer}
+  .ba-toggle button.on{background:#fff;color:#222}
+  .card-body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:8px;flex:1}
+  .card-body h3{margin:0;font-size:18px;cursor:pointer}
+  .tagline{margin:0;color:var(--muted);font-size:14px;flex:1}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:12px;color:var(--muted)}
+  .card-actions{display:flex;gap:8px;align-items:center}
+  .card-actions .linklike{background:none;border:0;padding:0;color:var(--accent2);font-size:14px;cursor:pointer;text-align:left;white-space:nowrap}
+  .card-actions .btn{flex:1;white-space:nowrap}
+  .empty{padding:40px 0;text-align:center;color:var(--muted)}
+  section.block{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:28px}
+  section.block h2{margin:0 0 6px;font-size:20px}
+  .note{font-size:13px;color:var(--muted)}
+  .note b{color:var(--ink)}
+  form label{display:block;font-size:14px;margin:10px 0 4px}
+  form input,form textarea,form select{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:15px;background:#fff;font-family:inherit}
+  form textarea{min-height:90px;resize:vertical}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .preview{max-width:100%;max-height:220px;border-radius:10px;margin-top:8px;display:block}
+  .msg{display:flex;gap:12px;border-top:1px solid var(--line);padding:12px 0}
+  .msg img{width:110px;height:110px;object-fit:cover;border-radius:10px;flex:none}
+  .msg .who{font-size:13px;color:var(--muted)}
+  .msg p{margin:4px 0 0;white-space:pre-wrap}
+  .detail-figure{position:relative;border-radius:14px;overflow:hidden;background:#e9e2d6}
+  .detail-figure .ba{aspect-ratio:16/10}
+  .prompt-box{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:12px 0}
+  .prompt-box h4{margin:0 0 6px;font-size:15px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .prompt-box p{margin:0;white-space:pre-wrap}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+  .toast.show{opacity:1}
+  footer{max-width:1080px;margin:0 auto;padding:24px 16px 40px;color:var(--muted);font-size:13px;text-align:center}
+  footer .owner-link{cursor:pointer}
+  table.admin{width:100%;border-collapse:collapse;font-size:14px}
+  table.admin th,table.admin td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+  .hidden{display:none!important}
+  @media (max-width:760px){
+    .grid{grid-template-columns:repeat(2,1fr);gap:10px}
+    h1{font-size:24px}
+    .card-actions{flex-direction:column;align-items:stretch}
+    .card-actions .linklike{white-space:nowrap;text-align:center}
+    .card-actions .btn{width:100%;text-align:center}
+    .card-body{padding:10px}
+    .card-body h3{font-size:16px}
+    .row2{grid-template-columns:1fr}
+  }
+  @media (max-width:400px){.grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>照片提示詞網站</h1>
+  <p class="sub">揀風格 → 複製提示詞 → 貼去生圖工具 → 出圖。本站只提供提示詞，唔提供生圖。</p>
+  <div class="intro">
+    <p style="margin:0">每幅範例圖都可以對比原相：電腦將滑鼠放上幅圖，手機㩒住幅圖，就會見到未改圖嘅原相，放開即刻變返效果圖；手機亦可以撳圖上面嘅「原相」掣固定顯示。</p>
+    <ol><li>揀一款風格 →</li><li>撳「複製提示詞」或者撳入去睇詳情 →</li><li>貼去你慣用嘅生圖工具就用得</li></ol>
+  </div>
+</header>
+<main id="view"></main>
+<footer>
+  <span class="owner-link" id="owner-trigger">照片提示詞網站 — 揀風格，複製提示詞，改造你嘅相</span>
+  <div id="owner-hint" class="hidden" style="margin-top:8px"><button class="btn small" id="open-admin">開啟站長工具</button></div>
+</footer>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const SHARED_ORIG = "/images/seed/original.jpg";
+let ALL = [];
+let MSG_CACHE = [];
+let TOAST_T;
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(TOAST_T); TOAST_T=setTimeout(()=>t.classList.remove("show"),1800); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+async function api(path, opts){
+  const r = await fetch(path, Object.assign({headers:{"Content-Type":"application/json"}}, opts||{}));
+  const data = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(data.error || ("請求失敗（"+r.status+"）"));
+  return data;
+}
+function copyText(text, btn){
+  const done = ()=>{ if(btn){ const old=btn.textContent; btn.textContent="已複製"; btn.disabled=true; setTimeout(()=>{btn.textContent=old; btn.disabled=false;},1800);} toast("已複製"); };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text, done)); }
+  else fallbackCopy(text, done);
+}
+function fallbackCopy(text, done){
+  const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0";
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand("copy"); done(); }catch(e){ toast("複製失敗，請手動複製"); }
+  document.body.removeChild(ta);
+}
+function fullCopyText(p){ return [p.promptZh, p.promptEn, p.negative].filter(Boolean).join("\n\n"); }
+function origOf(p){ return p.orig || SHARED_ORIG; }
+function imgOf(p){ return p.img || ""; }
+
+/* ---------- 前後對比 ---------- */
+function compareHTML(p){
+  const img = imgOf(p), orig = origOf(p);
+  const imgTag = img ? `<img class="ba-after" src="${esc(img)}" alt="${esc(p.name)}效果圖" loading="lazy" draggable="false">`
+                     : `<div class="ba-after" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#8a8172;background:#e9e2d6">未有示範圖</div>`;
+  return `<div class="ba" data-compare>
+    ${imgTag}
+    <img class="ba-before" src="${esc(orig)}" alt="改造前嘅原相" loading="lazy" draggable="false">
+    <span class="ba-badge" data-badge>效果圖</span>
+    <span class="ba-bar"><span class="ba-hint">㩒住幅圖睇原相</span><span class="ba-toggle" role="group" aria-label="切換效果圖同原相">
+      <button type="button" data-view="after" class="on" aria-pressed="true">效果</button>
+      <button type="button" data-view="before" aria-pressed="false">原相</button>
+    </span></span></div>`;
+}
+function bindCompare(scope){
+  $$("[data-compare]", scope).forEach(ba=>{
+    const badge = $("[data-badge]", ba);
+    const btns = $$("[data-view]", ba);
+    let sticky = false;
+    const setOrig = (show)=>{
+      ba.classList.toggle("show-orig", show);
+      badge.textContent = show ? "原相" : "效果圖";
+      btns.forEach(b=>{ const isB = b.getAttribute("data-view")==="before"; b.classList.toggle("on", isB===show); b.setAttribute("aria-pressed", String(isB===show)); });
+    };
+    ba.addEventListener("mouseenter", ()=>{ if(!sticky) setOrig(true); });
+    ba.addEventListener("mouseleave", ()=>{ if(!sticky) setOrig(false); });
+    ba.addEventListener("pointerdown", (e)=>{ if(e.target.closest("button")) return; setOrig(true); });
+    ["pointerup","pointerleave","pointercancel"].forEach(ev=>ba.addEventListener(ev, ()=>{ if(!sticky) setOrig(false); }));
+    btns.forEach(b=>b.addEventListener("click", (e)=>{ e.stopPropagation(); sticky = b.getAttribute("data-view")==="before"; setOrig(sticky); }));
+  });
+}
+
+/* ---------- 首頁 ---------- */
+let state = { q:"", cat:"全部", tool:"全部" };
+async function loadPrompts(){
+  const params = new URLSearchParams();
+  if(state.q) params.set("q", state.q);
+  if(state.cat && state.cat!=="全部") params.set("cat", state.cat);
+  if(state.tool && state.tool!=="全部") params.set("tool", state.tool);
+  ALL = await api("/api/prompts?"+params.toString());
+}
+function cardHTML(p){
+  return `<article class="card" data-id="${esc(p.id)}">
+    <div data-cardimg>${compareHTML(p)}</div>
+    <div class="card-body">
+      <h3 data-open>${esc(p.name)}</h3>
+      <p class="tagline">${esc(p.tagline||"")}</p>
+      <div class="chips">${(p.tools||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</div>
+      <div class="card-actions">
+        <button class="linklike" data-open>撳入去睇提示詞 →</button>
+        <button class="btn" data-copy>複製提示詞</button>
+      </div>
+    </div></article>`;
+}
+function homeHTML(){
+  const cats = ["全部","動畫","繪畫","攝影","數碼"];
+  const tools = ["全部","ChatGPT","Gemini","即夢","Midjourney"];
+  return `
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="搜尋風格、提示詞、工具…" value="${esc(state.q)}">
+    <select id="tool">${tools.map(t=>`<option ${t===state.tool?"selected":""}>${esc(t)}</option>`).join("")}</select>
+    <button class="btn ghost" id="random">隨機一款</button>
+  </div>
+  <div class="pills">${cats.map(c=>`<button class="pill ${c===state.cat?"on":""}" data-cat="${esc(c)}">${esc(c)}</button>`).join("")}</div>
+  <p class="count">共 ${ALL.length} 款風格 — 㩒住幅圖睇原相；撳卡上面嘅「複製提示詞」即刻複製，撳入去就睇到詳情。</p>
+  <div class="grid" id="grid">${ALL.length ? ALL.map(cardHTML).join("") : `<div class="empty">未搵到符合嘅風格，試下改搜尋或者分類。</div>`}</div>
+  <section class="block" id="board">
+    <h2>留言板</h2>
+    <p class="note">分享你用提示詞整出嚟嘅效果圖，或者想許願嘅風格都得。<b>你上載嘅風格效果圖會由站長審批，獲批有機會被採用為網站素材、放上首頁圖庫。</b>撳提交即表示同意。</p>
+    <form id="msg-form">
+      <div class="row2">
+        <div><label>名字（可留空）</label><input id="m-name" maxlength="30" placeholder="例如：阿樂"></div>
+        <div><label>上載效果圖</label><input type="file" id="m-img" accept="image/*"></div>
+      </div>
+      <img id="m-preview" class="preview hidden" alt="效果圖預覽">
+      <button type="button" id="m-remove" class="btn ghost small hidden">移除圖片</button>
+      <label>留言內容</label><textarea id="m-content" maxlength="500" placeholder="例如：用咗吉卜力風整咗張旅行相，效果好治癒！"></textarea>
+      <div style="margin-top:10px"><button class="btn" type="submit">發佈留言</button></div>
+    </form>
+    <div id="msg-list" style="margin-top:8px"></div>
+  </section>`;
+}
+function bindHome(){
+  const q = $("#q");
+  let deb;
+  q.addEventListener("input", ()=>{ clearTimeout(deb); deb=setTimeout(()=>{ state.q=q.value.trim(); render(); }, 300); });
+  $("#tool").addEventListener("change", e=>{ state.tool=e.target.value; render(); });
+  $$("[data-cat]").forEach(b=>b.addEventListener("click", ()=>{ state.cat=b.getAttribute("data-cat"); render(); }));
+  $("#random").addEventListener("click", ()=>{
+    if(!ALL.length) return;
+    const p = ALL[Math.floor(Math.random()*ALL.length)];
+    location.hash = "#/prompt/"+encodeURIComponent(p.id);
+  });
+  $$(".card").forEach(card=>{
+    const id = card.getAttribute("data-id");
+    const p = ALL.find(x=>x.id===id);
+    $("[data-copy]", card).addEventListener("click", e=>{ e.stopPropagation(); copyText(fullCopyText(p), e.currentTarget); });
+    $$("[data-open]", card).forEach(el=>el.addEventListener("click", ()=>{ location.hash="#/prompt/"+encodeURIComponent(id); }));
+    $("[data-cardimg]", card).addEventListener("click", e=>{ if(e.target.closest("button")) return; });
+  });
+  bindCompare($("#view"));
+  bindBoard();
+}
+async function loadMessages(){
+  MSG_CACHE = await api("/api/messages");
+  const list = $("#msg-list");
+  if(!list) return;
+  list.innerHTML = MSG_CACHE.length ? MSG_CACHE.map(m=>`
+    <div class="msg">
+      ${m.img?`<img src="${esc(m.img)}" alt="留言效果圖" loading="lazy">`:""}
+      <div><div class="who">${esc(m.name||"訪客")} · ${esc(new Date(m.created_at).toLocaleString("zh-HK"))}</div><p>${esc(m.content)}</p></div>
+    </div>`).join("") : `<p class="note">暫時未有留言，成為第一個分享效果圖嘅人啦。</p>`;
+}
+function readFileAsDataURL(file){
+  return new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(file); });
+}
+function bindBoard(){
+  const fileInput = $("#m-img"), preview = $("#m-preview"), removeBtn = $("#m-remove");
+  let imgData = "";
+  fileInput.addEventListener("change", async ()=>{
+    const f = fileInput.files && fileInput.files[0];
+    if(!f) return;
+    if(f.size > 8*1024*1024){ toast("圖片太大，上限 8MB"); fileInput.value=""; return; }
+    imgData = await readFileAsDataURL(f);
+    preview.src = imgData; preview.classList.remove("hidden"); removeBtn.classList.remove("hidden");
+  });
+  removeBtn.addEventListener("click", ()=>{ imgData=""; fileInput.value=""; preview.classList.add("hidden"); removeBtn.classList.add("hidden"); });
+  $("#msg-form").addEventListener("submit", async e=>{
+    e.preventDefault();
+    const content = $("#m-content").value.trim();
+    if(!content){ toast("請填寫留言內容"); return; }
+    const btn = e.target.querySelector('button[type=submit]'); btn.disabled=true;
+    try{
+      await api("/api/messages", {method:"POST", body:JSON.stringify({name:$("#m-name").value.trim(), content, imgData})});
+      toast("留言已發佈"); e.target.reset(); imgData=""; preview.classList.add("hidden"); removeBtn.classList.add("hidden");
+      await loadMessages();
+    }catch(err){ toast(err.message); }
+    btn.disabled=false;
+  });
+  loadMessages();
+}
+
+/* ---------- 詳情頁 ---------- */
+function detailHTML(p){
+  const sec = (title, text)=> text ? `<div class="prompt-box"><h4>${title}<button class="btn small" data-copy-one="${esc(text)}">複製</button></h4><p>${esc(text)}</p></div>` : "";
+  return `
+  <p><button class="btn ghost" id="back">← 返回首頁</button></p>
+  <div class="detail-figure">${compareHTML(p)}</div>
+  <p class="note" style="margin-top:8px">上面預設係改造成「${esc(p.name)}」之後嘅效果圖。將滑鼠放上幅圖，或者㩒住幅圖唔放，就會見到改造前嘅原相，放開即刻變返效果圖；手機可以撳圖上面嘅「原相／效果」掣切換。實際效果視乎你張相和使用的工具。</p>
+  <h2 style="margin:12px 0 0">${esc(p.name)}</h2>
+  <p class="tagline">${esc(p.tagline||"")}</p>
+  <div class="chips">${(p.tools||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</div>
+  <div style="margin:14px 0"><button class="btn" id="copy-all">一鍵複製全部</button></div>
+  ${sec("中文提示詞", p.promptZh)}
+  ${sec("英文提示詞", p.promptEn)}
+  ${sec("負面提示詞", p.negative)}
+  ${sec("使用小貼士", p.tip)}
+  <div class="prompt-box"><h4>適用工具</h4><p>${esc((p.tools||[]).join("、"))}</p></div>`;
+}
+function bindDetail(p){
+  $("#back").addEventListener("click", ()=>{ location.hash="#/"; });
+  $("#copy-all").addEventListener("click", e=>copyText(fullCopyText(p), e.currentTarget));
+  $$("[data-copy-one]").forEach(b=>b.addEventListener("click", e=>copyText(b.getAttribute("data-copy-one"), e.currentTarget)));
+  bindCompare($("#view"));
+}
+
+/* ---------- 站長工具 ---------- */
+function adminHTML(){
+  return `
+  <p><button class="btn ghost" id="back">← 返回首頁</button> <button class="btn ghost" id="hide-admin">用完隱藏返</button></p>
+  <h2>站長工具</h2>
+  <p class="note">呢度加、改、刪嘅提示詞會直接存入網站資料庫，加完即刻所有人睇到。唔使再匯出 JSON 俾人合併。</p>
+  <section class="block">
+    <h2>新增 / 編輯提示詞</h2>
+    <form id="prompt-form">
+      <input type="hidden" id="f-id">
+      <div class="row2">
+        <div><label>風格名稱 *</label><input id="f-name" required maxlength="30" placeholder="例如：黏土風"></div>
+        <div><label>分類</label><select id="f-cat"><option>動畫</option><option>繪畫</option><option>攝影</option><option>數碼</option></select></div>
+      </div>
+      <label>一句話效果</label><input id="f-tagline" maxlength="80">
+      <label>中文提示詞 *</label><textarea id="f-zh"></textarea>
+      <label>英文提示詞</label><textarea id="f-en"></textarea>
+      <label>負面提示詞</label><textarea id="f-neg"></textarea>
+      <label>使用小貼士</label><input id="f-tip" maxlength="120">
+      <label>適用工具（用逗號分隔）</label><input id="f-tools" placeholder="例如：ChatGPT、Gemini、即夢">
+      <label>適用對象（用逗號分隔）</label><input id="f-subjects" placeholder="例如：人物、風景">
+      <div class="row2">
+        <div><label>效果圖（對比用）</label><input type="file" id="f-img" accept="image/*"><img id="f-img-preview" class="preview hidden" alt="效果圖預覽"></div>
+        <div><label>原相圖片（對比用，可留空，留空就用共用原相）</label><input type="file" id="f-orig" accept="image/*"><img id="f-orig-preview" class="preview hidden" alt="原相預覽"></div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" type="submit">儲存</button>
+        <button class="btn ghost" type="button" id="form-reset">清空，新增一款</button>
+      </div>
+    </form>
+  </section>
+  <section class="block">
+    <h2>匯入 / 匯出（v2）</h2>
+    <p class="note">匯出會下載全部提示詞嘅 JSON（格式不變，可同 Muse 版互相同步）。匯入支援 JSON 檔案、CSV 檔案、貼上文字、貼網址（GitHub raw 等 JSON 網址）：先預覽分類，確認先寫入，一行錯唔會令成批失敗。CSV 欄位：name、cat、promptZh、promptEn、negative、tools（用 | 分隔）、subjects、tagline、tip、img；Excel 另存 CSV 要揀 UTF-8。</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn ghost" id="export-json">匯出 JSON</button>
+      <label class="btn ghost" style="cursor:pointer">揀檔案（.json／.csv）<input type="file" id="import-file" accept="application/json,.json,text/csv,.csv" style="display:none"></label>
+    </div>
+    <label>貼上 JSON 或 CSV 文字</label>
+    <textarea id="import-text" placeholder="貼上 JSON 陣列，或者 CSV（第一行係欄位名）"></textarea>
+    <label>由網址匯入（GitHub raw 等 JSON 網址）</label>
+    <input id="import-url" placeholder="例如：https://raw.githubusercontent.com/…/prompts.json">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
+      <label style="font-size:14px"><input type="radio" name="import-status" value="live" checked> 直接上架</label>
+      <label style="font-size:14px"><input type="radio" name="import-status" value="pending"> 先放待審核</label>
+      <label style="font-size:14px"><input type="checkbox" id="import-overwrite"> 相同名稱／編號時覆蓋</label>
+      <button class="btn" id="import-preview">預覽匯入</button>
+      <button class="btn green hidden" id="import-confirm">確認寫入</button>
+    </div>
+    <div id="import-preview-box" style="margin-top:10px"></div>
+    <div id="import-report" class="note" style="margin-top:8px"></div>
+  </section>
+  <section class="block">
+    <h2>待審核（<span id="pending-count">0</span> 款）</h2>
+    <p class="note">未批准嘅提示詞唔會喺前台出現，批准先上架。</p>
+    <div id="pending-list"></div>
+  </section>
+  <section class="block">
+    <h2>全部提示詞（<span id="admin-count"></span> 款）</h2>
+    <div style="overflow-x:auto"><table class="admin"><thead><tr><th>風格</th><th>分類</th><th>工具</th><th>操作</th></tr></thead><tbody id="admin-list"></tbody></table></div>
+  </section>
+  <section class="block">
+    <h2>留言管理</h2>
+    <div id="admin-msgs"></div>
+  </section>`;
+}
+function fillForm(p){
+  $("#f-id").value = p ? p.id : "";
+  $("#f-name").value = p ? p.name : "";
+  $("#f-cat").value = p ? p.cat : "動畫";
+  $("#f-tagline").value = p ? p.tagline : "";
+  $("#f-zh").value = p ? p.promptZh : "";
+  $("#f-en").value = p ? p.promptEn : "";
+  $("#f-neg").value = p ? p.negative : "";
+  $("#f-tip").value = p ? p.tip : "";
+  $("#f-tools").value = p ? (p.tools||[]).join("、") : "";
+  $("#f-subjects").value = p ? (p.subjects||[]).join("、") : "";
+  $("#f-img").value=""; $("#f-orig").value="";
+  const pi=$("#f-img-preview"), po=$("#f-orig-preview");
+  if(p && p.img){ pi.src=p.img; pi.classList.remove("hidden"); } else pi.classList.add("hidden");
+  if(p && p.orig){ po.src=p.orig; po.classList.remove("hidden"); } else po.classList.add("hidden");
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+async function renderAdminList(){
+  const list = await api("/api/prompts?status=all");
+  $("#admin-count").textContent = list.length;
+  $("#admin-list").innerHTML = list.map(p=>`<tr>
+    <td>${esc(p.name)}${p.status==="pending" ? ' <span class="chip">待審核</span>' : ""}</td><td>${esc(p.cat)}</td><td>${esc((p.tools||[]).join("、"))}</td>
+    <td style="white-space:nowrap"><button class="btn small" data-edit="${esc(p.id)}">編輯</button> <button class="btn small ghost" data-del="${esc(p.id)}">刪除</button></td>
+  </tr>`).join("");
+  $$("[data-edit]").forEach(b=>b.addEventListener("click", async ()=>{
+    const p = await api("/api/prompts/"+encodeURIComponent(b.getAttribute("data-edit")));
+    fillForm(p); toast("已載入「"+p.name+"」去編輯");
+  }));
+  $$("[data-del]").forEach(b=>b.addEventListener("click", async ()=>{
+    const id = b.getAttribute("data-del");
+    const p = list.find(x=>x.id===id);
+    if(!confirm("確定刪除「"+(p?p.name:id)+"」嗎？")) return;
+    await api("/api/prompts/"+encodeURIComponent(id), {method:"DELETE"});
+    toast("已刪除"); renderAdminList();
+  }));
+  const pending = list.filter(p=>p.status==="pending");
+  $("#pending-count").textContent = pending.length;
+  $("#pending-list").innerHTML = pending.length ? pending.map(p=>`<div class="msg"><div style="flex:1"><b>${esc(p.name)}</b> <span class="note">${esc(p.cat)} · ${esc((p.tools||[]).join("、"))}</span><p>${esc(p.promptZh||p.promptEn||"")}</p></div><div style="display:flex;gap:6px;flex:none"><button class="btn small green" data-approve="${esc(p.id)}">批准上架</button> <button class="btn small ghost" data-pend-del="${esc(p.id)}">刪除</button></div></div>`).join("") : `<p class="note">暫時未有待審核嘅提示詞。</p>`;
+  $$("[data-approve]").forEach(b=>b.addEventListener("click", async ()=>{
+    await api("/api/prompts/"+encodeURIComponent(b.getAttribute("data-approve"))+"/approve", {method:"POST", body:"{}"});
+    toast("已批准上架"); renderAdminList();
+  }));
+  $$("[data-pend-del]").forEach(b=>b.addEventListener("click", async ()=>{
+    if(!confirm("確定刪除呢款待審核提示詞嗎？")) return;
+    await api("/api/prompts/"+encodeURIComponent(b.getAttribute("data-pend-del")), {method:"DELETE"});
+    toast("已刪除"); renderAdminList();
+  }));
+  const msgs = await api("/api/messages");
+  $("#admin-msgs").innerHTML = msgs.length ? msgs.map(m=>`<div class="msg">
+    ${m.img?`<img src="${esc(m.img)}" alt="留言效果圖">`:""}
+    <div style="flex:1"><div class="who">${esc(m.name||"訪客")} · ${esc(new Date(m.created_at).toLocaleString("zh-HK"))}</div><p>${esc(m.content)}</p></div>
+    <button class="btn small ghost" data-msg-del="${m.id}">刪除</button>
+  </div>`).join("") : `<p class="note">暫時未有留言。</p>`;
+  $$("[data-msg-del]").forEach(b=>b.addEventListener("click", async ()=>{
+    if(!confirm("確定刪除呢則留言嗎？")) return;
+    await api("/api/messages/"+b.getAttribute("data-msg-del"), {method:"DELETE"});
+    toast("留言已刪除"); renderAdminList();
+  }));
+}
+function bindAdmin(){
+  $("#back").addEventListener("click", ()=>{ location.hash="#/"; });
+  $("#hide-admin").addEventListener("click", ()=>{ $("#owner-hint").classList.add("hidden"); location.hash="#/"; });
+  let imgData="", origData="";
+  const bindPreview = (inputId, previewId, set)=>{
+    $(inputId).addEventListener("change", async ()=>{
+      const f = $(inputId).files && $(inputId).files[0];
+      if(!f) return;
+      const d = await readFileAsDataURL(f); set(d);
+      const pv = $(previewId); pv.src=d; pv.classList.remove("hidden");
+    });
+  };
+  bindPreview("#f-img","#f-img-preview", d=>imgData=d);
+  bindPreview("#f-orig","#f-orig-preview", d=>origData=d);
+  $("#form-reset").addEventListener("click", ()=>{ fillForm(null); imgData=""; origData=""; });
+  $("#prompt-form").addEventListener("submit", async e=>{
+    e.preventDefault();
+    const id = $("#f-id").value;
+    const body = {name:$("#f-name").value, cat:$("#f-cat").value, tagline:$("#f-tagline").value,
+      promptZh:$("#f-zh").value, promptEn:$("#f-en").value, negative:$("#f-neg").value, tip:$("#f-tip").value,
+      tools:$("#f-tools").value, subjects:$("#f-subjects").value, imgData, origData};
+    try{
+      if(id){ await api("/api/prompts/"+encodeURIComponent(id), {method:"PUT", body:JSON.stringify(body)}); toast("已儲存"); }
+      else { await api("/api/prompts", {method:"POST", body:JSON.stringify(body)}); toast("已新增"); }
+      fillForm(null); imgData=""; origData=""; renderAdminList();
+    }catch(err){ toast(err.message); }
+  });
+  $("#export-json").addEventListener("click", ()=>{ window.open("/api/prompts/export", "_blank"); });
+  let pendingPayload = null;
+  const importStatus = ()=>{ const r = document.querySelector('input[name="import-status"]:checked'); return r ? r.value : "live"; };
+  const collectPayload = async ()=>{
+    const f = $("#import-file").files && $("#import-file").files[0];
+    const url = $("#import-url").value.trim();
+    const text = $("#import-text").value.trim();
+    if (url) return { url, overwrite: $("#import-overwrite").checked };
+    if (f) { const t = await f.text(); return { text: t, overwrite: $("#import-overwrite").checked }; }
+    if (text) return { text, overwrite: $("#import-overwrite").checked };
+    throw new Error("請先揀檔案、貼上文字或貼網址。");
+  };
+  $("#import-preview").addEventListener("click", async ()=>{
+    const box = $("#import-preview-box"), rep = $("#import-report");
+    box.innerHTML = ""; rep.textContent = "";
+    $("#import-confirm").classList.add("hidden");
+    try{
+      const payload = await collectPayload();
+      pendingPayload = payload;
+      const r = await api("/api/prompts/import/preview", {method:"POST", body:JSON.stringify(payload)});
+      const badge = {add:"新增", update:"更新", skip:"跳過", error:"格式錯"};
+      box.innerHTML = `<p class="note">預覽：共 ${r.total} 行 — 新增 ${r.summary.add}、更新 ${r.summary.update}、跳過 ${r.summary.skip}、格式錯 ${r.summary.error}。確認先寫入。</p>
+      <div style="overflow-x:auto"><table class="admin"><thead><tr><th>#</th><th>名稱</th><th>結果</th><th>原因</th></tr></thead><tbody>
+      ${r.rows.map(x=>`<tr><td>${x.index}</td><td>${esc(x.name||"—")}</td><td>${badge[x.action]||x.action}</td><td>${esc(x.reason||"")}</td></tr>`).join("")}
+      </tbody></table></div>`;
+      if (r.summary.add + r.summary.update > 0) $("#import-confirm").classList.remove("hidden");
+      else rep.textContent = "冇可以寫入嘅行，請檢查內容。";
+    }catch(err){ toast("預覽失敗：" + err.message); }
+  });
+  $("#import-confirm").addEventListener("click", async ()=>{
+    if (!pendingPayload) { toast("請先預覽"); return; }
+    try{
+      const r = await api("/api/prompts/import/confirm", {method:"POST", body:JSON.stringify(Object.assign({}, pendingPayload, {status: importStatus()}))});
+      const errTxt = (r.errors||[]).map(x=>`第 ${x.index} 行「${x.name}」：${x.reason}`).join("；");
+      $("#import-report").innerHTML = `匯入完成：新增 ${r.added}，更新 ${r.updated}，跳過 ${r.skipped}。${errTxt ? "<br>錯誤行：" + esc(errTxt) : ""}`;
+      toast(`匯入完成：新增 ${r.added}，更新 ${r.updated}，跳過 ${r.skipped}`);
+      pendingPayload = null; $("#import-confirm").classList.add("hidden");
+      $("#import-file").value=""; $("#import-text").value=""; $("#import-url").value="";
+      renderAdminList();
+    }catch(err){ toast("匯入失敗：" + err.message); }
+  });
+  fillForm(null);
+  renderAdminList();
+}
+
+/* ---------- 路由 ---------- */
+async function render(){
+  const view = $("#view");
+  const hash = location.hash || "#/";
+  try{
+    if(hash.startsWith("#/prompt/")){
+      const id = decodeURIComponent(hash.slice(9));
+      const p = await api("/api/prompts/"+encodeURIComponent(id));
+      view.innerHTML = detailHTML(p);
+      bindDetail(p);
+    } else if(hash === "#/owner"){
+      view.innerHTML = adminHTML();
+      bindAdmin();
+    } else {
+      await loadPrompts();
+      view.innerHTML = homeHTML();
+      bindHome();
+    }
+  }catch(err){
+    view.innerHTML = `<div class="empty">載入失敗：${esc(err.message)}<br><button class="btn" onclick="location.reload()">重新載入</button></div>`;
+  }
+  window.scrollTo(0,0);
+}
+window.addEventListener("hashchange", render);
+
+/* 站長隱藏入口：連撳頁底文字 5 下 */
+let ownerClicks = 0, ownerTimer = null;
+$("#owner-trigger").addEventListener("click", ()=>{
+  ownerClicks++;
+  clearTimeout(ownerTimer);
+  ownerTimer = setTimeout(()=>{ ownerClicks=0; }, 2500);
+  if(ownerClicks >= 5){
+    ownerClicks = 0;
+    $("#owner-hint").classList.remove("hidden");
+    toast("站長工具入口已顯示");
+  }
+});
+$("#open-admin").addEventListener("click", ()=>{ location.hash="#/owner"; });
+
+render();
+</script>
+</body>
+</html>
