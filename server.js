@@ -18,6 +18,17 @@ try {
 }
 
 const PORT = process.env.PORT || 3000;
+// v3：版本號單一來源 — VERSION 檔案，否則讀 package.json
+const VERSION = (() => {
+  try { return fs.readFileSync(path.join(__dirname, "VERSION"), "utf8").trim(); }
+  catch (e) {
+    try { return JSON.parse(fs.readFileSync(path.join(__dirname, "package.json"), "utf8")).version || "1.2.0"; }
+    catch (e2) { return "1.2.0"; }
+  }
+})();
+// v3：可選站長密碼。未設定時沿用舊行為（任何人撳到入口都可改，站長工具會顯示警告）；
+// 設定 OWNER_PASSWORD 後，所有寫入 API + 待審核清單 + 備份都要帶 X-Owner-Pin 標頭。
+const OWNER_PASSWORD = process.env.OWNER_PASSWORD || "";
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, "data");
 const DB_PATH = path.join(DATA_DIR, "prompts.db");
@@ -74,7 +85,9 @@ function seedIfEmpty() {
     console.log("注意：搵唔到 seed.json，題庫會係空嘅，請用站長工具新增。");
     return;
   }
-  const seed = JSON.parse(fs.readFileSync(seedPath, "utf8"));
+  let seed;
+  try { seed = JSON.parse(fs.readFileSync(seedPath, "utf8")); }
+  catch (e) { console.log("注意：seed.json 讀唔到（" + e.message + "），題庫會係空嘅，請用站長工具新增。"); return; }
   const now = new Date().toISOString();
   const ins = db.prepare(
     "INSERT INTO prompts (id,name,cat,subjects,tools,tagline,promptZh,promptEn,negative,tip,img,orig,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
@@ -116,12 +129,21 @@ function saveDataUrl(dataUrl, prefix) {
   if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) return "";
   const m = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
   if (!m) return "";
+  // v3：唔接受 SVG（內含 script 風險），只接受 PNG／JPEG／WebP／GIF
+  if (m[1] === "image/svg+xml") throw new Error("唔接受 SVG 圖片，請用 PNG／JPG／WebP。");
   const ext = m[1] === "image/png" ? "png" : m[1] === "image/webp" ? "webp" : m[1] === "image/gif" ? "gif" : "jpg";
   const buf = Buffer.from(m[2], "base64");
   if (buf.length > 8 * 1024 * 1024) throw new Error("圖片太大（上限 8MB）。");
   const name = prefix + "-" + Date.now().toString(36) + "-" + crypto.randomBytes(4).toString("hex") + "." + ext;
   fs.writeFileSync(path.join(UPLOAD_DIR, name), buf);
   return "/uploads/" + name;
+}
+// v3：刪除提示詞／換圖時，一併清走 public/uploads/ 入面嘅舊檔（淨係刪 /uploads/，唔郁種子圖）
+function deleteUploadFile(url) {
+  if (!url || typeof url !== "string" || !url.startsWith("/uploads/")) return;
+  const name = path.basename(url);
+  if (!name || name === ".gitkeep" || name.includes("..")) return;
+  try { fs.unlinkSync(path.join(UPLOAD_DIR, name)); } catch (e) { /* 檔已唔見，唔使理 */ }
 }
 function splitList(v) {
   if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
@@ -130,17 +152,18 @@ function splitList(v) {
 }
 function normPrompt(body, isNew) {
   const b = body || {};
+  const cap = (v, n) => String(v || "").trim().slice(0, n);
   return {
-    id: (b.id || "").trim() || (isNew ? slugId() : ""),
-    name: (b.name || "").trim(),
+    id: (b.id || "").trim().slice(0, 80) || (isNew ? slugId() : ""),
+    name: cap(b.name, 60),
     cat: (b.cat || "動畫").trim(),
     subjects: splitList(b.subjects),
     tools: splitList(b.tools),
-    tagline: (b.tagline || "").trim(),
-    promptZh: (b.promptZh || "").trim(),
-    promptEn: (b.promptEn || "").trim(),
-    negative: (b.negative || "").trim(),
-    tip: (b.tip || "").trim(),
+    tagline: cap(b.tagline, 120),
+    promptZh: cap(b.promptZh, 20000),
+    promptEn: cap(b.promptEn, 20000),
+    negative: cap(b.negative, 5000),
+    tip: cap(b.tip, 200),
     img: (b.img || "").trim(),
     orig: (b.orig || "").trim(),
     status: b.status === "pending" ? "pending" : "live",
@@ -152,6 +175,34 @@ function normPrompt(body, isNew) {
 // ---------- Express ----------
 const app = express();
 app.use(express.json({ limit: "15mb" }));
+// v3：基本安全標頭（唔使加依賴）
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "same-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  next();
+});
+
+// v3：簡易限流（記憶體內，每 IP 計）— 防留言洗版、匯入濫用
+const rateBuckets = new Map();
+function rateLimit(max, windowMs) {
+  return (req, res, next) => {
+    const key = (req.ip || "?") + ":" + req.path;
+    const now = Date.now();
+    let b = rateBuckets.get(key);
+    if (!b || now - b.start > windowMs) { b = { start: now, count: 0 }; rateBuckets.set(key, b); }
+    b.count++;
+    if (b.count > max) return res.status(429).json({ error: "請求太密，請稍後再試。" });
+    next();
+  };
+}
+// v3：站長驗證中介層（未設 OWNER_PASSWORD 時直接放行，保持向後相容）
+function ownerAuth(req, res, next) {
+  if (!OWNER_PASSWORD) return next();
+  if (req.headers["x-owner-pin"] === OWNER_PASSWORD) return next();
+  return res.status(401).json({ error: "需要站長密碼。", needPin: true });
+}
 app.use(express.static(path.join(ROOT, "public")));
 
 // ----- 提示詞 API -----
@@ -160,6 +211,9 @@ app.get("/api/prompts", (req, res) => {
   const cat = (req.query.cat || "").trim();
   const tool = (req.query.tool || "").trim();
   const statusQ = (req.query.status || "live").trim(); // live（預設，前台只顯示 live）/ pending / all
+  // v3：設咗站長密碼嗰陣，pending／all 清單要驗證，唔可以畀訪客直接拎走未上架內容
+  if ((statusQ === "pending" || statusQ === "all") && OWNER_PASSWORD && req.headers["x-owner-pin"] !== OWNER_PASSWORD)
+    return res.status(401).json({ error: "需要站長密碼。", needPin: true });
   let rows = db.prepare("SELECT * FROM prompts ORDER BY created_at ASC, id ASC").all();
   let list = rows.map(rowToPrompt);
   if (statusQ === "live" || statusQ === "pending") list = list.filter((p) => p.status === statusQ);
@@ -174,15 +228,16 @@ app.get("/api/prompts", (req, res) => {
   res.json(list);
 });
 
-app.get("/api/prompts/export", (req, res) => {
+app.get("/api/prompts/export", ownerAuth, (req, res) => {
   const rows = db.prepare("SELECT * FROM prompts ORDER BY created_at ASC, id ASC").all();
+  const d = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Content-Disposition", 'attachment; filename="prompts-export.json"');
+  res.setHeader("Content-Disposition", `attachment; filename="prompts-export-${d}.json"`);
   res.send(JSON.stringify(rows.map(rowToPrompt), null, 2));
 });
 
 // 待審核清單（等同 ?status=pending）
-app.get("/api/prompts/pending", (req, res) => {
+app.get("/api/prompts/pending", ownerAuth, (req, res) => {
   const rows = db.prepare("SELECT * FROM prompts WHERE status = 'pending' ORDER BY created_at ASC, id ASC").all();
   res.json(rows.map(rowToPrompt));
 });
@@ -190,10 +245,16 @@ app.get("/api/prompts/pending", (req, res) => {
 app.get("/api/prompts/:id", (req, res) => {
   const r = db.prepare("SELECT * FROM prompts WHERE id = ?").get(req.params.id);
   if (!r) return res.status(404).json({ error: "搵唔到呢款風格。" });
+  // v3：待審核風格唔可以靠估網址直接睇到；站長工具會帶 ?status=all 拎
+  // 設咗站長密碼嗰陣，?status=all 都要驗證
+  if (req.query.status === "all" && OWNER_PASSWORD && req.headers["x-owner-pin"] !== OWNER_PASSWORD)
+    return res.status(404).json({ error: "搵唔到呢款風格。" });
+  if (r.status === "pending" && req.query.status !== "all")
+    return res.status(404).json({ error: "搵唔到呢款風格。" });
   res.json(rowToPrompt(r));
 });
 
-app.post("/api/prompts", (req, res) => {
+app.post("/api/prompts", ownerAuth, (req, res) => {
   try {
     const p = normPrompt(req.body, true);
     if (!p.name) return res.status(400).json({ error: "請填風格名稱。" });
@@ -210,7 +271,7 @@ app.post("/api/prompts", (req, res) => {
   }
 });
 
-app.put("/api/prompts/:id", (req, res) => {
+app.put("/api/prompts/:id", ownerAuth, (req, res) => {
   try {
     const old = db.prepare("SELECT * FROM prompts WHERE id = ?").get(req.params.id);
     if (!old) return res.status(404).json({ error: "搵唔到呢款風格。" });
@@ -218,8 +279,9 @@ app.put("/api/prompts/:id", (req, res) => {
     if (!p.name) return res.status(400).json({ error: "請填風格名稱。" });
     let img = p.img || old.img;
     let orig = p.orig || old.orig;
-    if (p.imgData) img = saveDataUrl(p.imgData, "img");
-    if (p.origData) orig = saveDataUrl(p.origData, "orig");
+    // v3：換咗新圖，清走舊嘅上載檔，唔好留孤兒檔食空間
+    if (p.imgData) { const ni = saveDataUrl(p.imgData, "img"); if (ni !== img) deleteUploadFile(img); img = ni; }
+    if (p.origData) { const no = saveDataUrl(p.origData, "orig"); if (no !== orig) deleteUploadFile(orig); orig = no; }
     const status = (req.body && req.body.status) ? (p.status === "pending" ? "pending" : "live") : (old.status || "live");
     db.prepare(
       "UPDATE prompts SET name=?,cat=?,subjects=?,tools=?,tagline=?,promptZh=?,promptEn=?,negative=?,tip=?,img=?,orig=?,status=?,updated_at=? WHERE id=?"
@@ -230,9 +292,13 @@ app.put("/api/prompts/:id", (req, res) => {
   }
 });
 
-app.delete("/api/prompts/:id", (req, res) => {
+app.delete("/api/prompts/:id", ownerAuth, (req, res) => {
+  const old = db.prepare("SELECT * FROM prompts WHERE id = ?").get(req.params.id);
+  if (!old) return res.status(404).json({ error: "搵唔到呢款風格。" });
   const info = db.prepare("DELETE FROM prompts WHERE id = ?").run(req.params.id);
   if (info.changes === 0) return res.status(404).json({ error: "搵唔到呢款風格。" });
+  deleteUploadFile(old.img);
+  deleteUploadFile(old.orig);
   res.json({ ok: true });
 });
 
@@ -261,7 +327,8 @@ function parseCsv(text) {
   if (field !== "" || row.length) { row.push(field); if (row.some((x) => x.trim() !== "")) rows.push(row); }
   return rows;
 }
-const CSV_HEADERS = ["name", "cat", "promptZh", "promptEn", "negative", "tools", "subjects", "tagline", "tip", "img"];
+// v3：加埋 id／status／orig（選填），匯出再匯入可以保住原有編號同狀態
+const CSV_HEADERS = ["id", "name", "cat", "promptZh", "promptEn", "negative", "tools", "subjects", "tagline", "tip", "img", "orig", "status"];
 function csvToItems(csvText) {
   const rows = parseCsv(csvText);
   if (!rows.length) throw new Error("CSV 係空嘅，請檢查檔案。");
@@ -271,9 +338,9 @@ function csvToItems(csvText) {
   if (!("name" in idx)) throw new Error("CSV 缺少 name 欄（第一行必須係欄位名：name、cat、promptZh、promptEn、negative、tools、subjects、tagline、tip、img）。");
   return rows.slice(1).map((r) => {
     const get = (k) => (k in idx ? (r[idx[k]] || "").trim() : "");
-    return { name: get("name"), cat: get("cat") || "動畫", promptZh: get("promptZh"), promptEn: get("promptEn"),
+    return { id: get("id"), name: get("name"), cat: get("cat") || "動畫", promptZh: get("promptZh"), promptEn: get("promptEn"),
       negative: get("negative"), tools: get("tools"), subjects: get("subjects"),
-      tagline: get("tagline"), tip: get("tip"), img: get("img") };
+      tagline: get("tagline"), tip: get("tip"), img: get("img"), orig: get("orig"), status: get("status") };
   });
 }
 function itemsFromBody(body) {
@@ -282,8 +349,22 @@ function itemsFromBody(body) {
   if (Array.isArray(body.items)) return body.items;
   const text = (body.csv || body.text || "").trim();
   if (!text) return null;
-  if (text.startsWith("[") || text.startsWith("{")) {
-    const parsed = JSON.parse(text);
+  return parseImportText(text);
+}
+// v3：擋內網／本機地址（SSRF），只准公開 http／https；跟隨跳轉最多 3 次，每次再驗地址
+function isPublicHost(host) {
+  const h = String(host || "").toLowerCase();
+  if (!h || h === "localhost" || h.endsWith(".localhost") || h === "0.0.0.0" || h === "[::1]" || h === "::1") return false;
+  if (/^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
+      h.startsWith("169.254.") || h.startsWith("::ffff:127.") || h.startsWith("::ffff:10.") || h.startsWith("::ffff:192.168.")) return false;
+  return true;
+}
+function parseImportText(text) {
+  const trimmed = String(text || "").trim();
+  if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+    let parsed;
+    try { parsed = JSON.parse(trimmed); }
+    catch (e) { throw new Error("JSON 格式唔啱（" + e.message + "）。"); }
     if (Array.isArray(parsed)) return parsed;
     if (Array.isArray(parsed.items)) return parsed.items;
     throw new Error("JSON 格式唔啱，要係提示詞嘅陣列。");
@@ -294,22 +375,42 @@ async function fetchUrlItems(url) {
   let u;
   try { u = new URL(url); } catch (e) { throw new Error("網址格式唔啱。"); }
   if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error("只支援 http／https 網址。");
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000);
-  let r;
-  try { r = await fetch(u.toString(), { signal: ctrl.signal, headers: { "User-Agent": "photo-prompt-import/2.0" } }); }
-  catch (e) { throw new Error("抓唔到呢個網址（網絡錯誤或逾時 15 秒）。"); }
-  finally { clearTimeout(timer); }
-  if (!r.ok) throw new Error(`抓網址失敗（HTTP ${r.status}）。`);
-  const text = (await r.text()).slice(0, 5 * 1024 * 1024);
-  const trimmed = text.trim();
-  if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
-    const parsed = JSON.parse(trimmed);
-    if (Array.isArray(parsed)) return parsed;
-    if (Array.isArray(parsed.items)) return parsed.items;
-    throw new Error("網址返嚟嘅 JSON 格式唔啱，要係提示詞嘅陣列。");
+  if (!isPublicHost(u.hostname)) throw new Error("唔可以抓內網／本機地址，只支援公開網址。");
+  const MAX = 5 * 1024 * 1024;
+  let current = u;
+  for (let hop = 0; hop <= 3; hop++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    let r;
+    try { r = await fetch(current.toString(), { signal: ctrl.signal, redirect: "manual", headers: { "User-Agent": "photo-prompt-import/3.0" } }); }
+    catch (e) { throw new Error("抓唔到呢個網址（網絡錯誤或逾時 15 秒）。"); }
+    finally { clearTimeout(timer); }
+    if (r.status >= 300 && r.status < 400) {
+      const loc = r.headers.get("location");
+      if (!loc) throw new Error("抓網址失敗（跳轉無目標）。");
+      try { current = new URL(loc, current); } catch (e) { throw new Error("跳轉網址格式唔啱。"); }
+      if (current.protocol !== "http:" && current.protocol !== "https:") throw new Error("只支援 http／https 網址。");
+      if (!isPublicHost(current.hostname)) throw new Error("唔可以抓內網／本機地址，只支援公開網址。");
+      continue;
+    }
+    if (!r.ok) throw new Error(`抓網址失敗（HTTP ${r.status}）。`);
+    const len = Number(r.headers.get("content-length") || 0);
+    if (len > MAX) throw new Error("網址返嚟嘅檔案太大（上限 5MB）。");
+    // 逐塊讀，超過 5MB 即停，唔好一次過讀晒入記憶體
+    const reader = r.body.getReader();
+    const chunks = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > MAX) { try { await reader.cancel(); } catch (e) {} throw new Error("網址返嚟嘅檔案太大（上限 5MB）。"); }
+      chunks.push(value);
+    }
+    const text = Buffer.concat(chunks).toString("utf8");
+    return parseImportText(text);
   }
-  return csvToItems(text);
+  throw new Error("跳轉太多次（超過 3 次）。");
 }
 async function resolveImportItems(body) {
   if (body && body.url) return fetchUrlItems(String(body.url).trim());
@@ -349,6 +450,7 @@ function classifyItems(items, overwrite) {
   return { total: items.length, rows, summary };
 }
 // 逐行寫入（一行錯唔會令成批失敗）
+// status：指定就全部用呢個狀態；傳 null 就保留每項本身嘅 status（備份還原用）
 function writeItems(items, overwrite, status) {
   const now = nowIso();
   let added = 0, updated = 0, skipped = 0;
@@ -362,17 +464,21 @@ function writeItems(items, overwrite, status) {
       const byId = p.id ? db.prepare("SELECT id FROM prompts WHERE id = ?").get(p.id) : null;
       const byName = db.prepare("SELECT id FROM prompts WHERE lower(name) = ?").get(key);
       const exists = byId || byName;
+      const itemStatus = status || p.status || "live";
       if (exists) {
         if (!overwrite) { skipped++; continue; }
         const oldRow = db.prepare("SELECT * FROM prompts WHERE id = ?").get(exists.id);
+        const newImg = p.img || oldRow.img, newOrig = p.orig || oldRow.orig;
         db.prepare("UPDATE prompts SET name=?,cat=?,subjects=?,tools=?,tagline=?,promptZh=?,promptEn=?,negative=?,tip=?,img=?,orig=?,status=?,updated_at=? WHERE id=?")
-          .run(p.name, p.cat, JSON.stringify(p.subjects), JSON.stringify(p.tools), p.tagline, p.promptZh, p.promptEn, p.negative, p.tip, p.img || oldRow.img, p.orig || oldRow.orig, status, now, exists.id);
+          .run(p.name, p.cat, JSON.stringify(p.subjects), JSON.stringify(p.tools), p.tagline, p.promptZh, p.promptEn, p.negative, p.tip, newImg, newOrig, itemStatus, now, exists.id);
+        if (p.img && p.img !== oldRow.img) deleteUploadFile(oldRow.img);
+        if (p.orig && p.orig !== oldRow.orig) deleteUploadFile(oldRow.orig);
         updated++;
       } else if (seenNames.has(key)) { skipped++; continue; }
       else {
         seenNames.add(key);
         db.prepare("INSERT INTO prompts (id,name,cat,subjects,tools,tagline,promptZh,promptEn,negative,tip,img,orig,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-          .run(p.id, p.name, p.cat, JSON.stringify(p.subjects), JSON.stringify(p.tools), p.tagline, p.promptZh, p.promptEn, p.negative, p.tip, p.img, p.orig, status, now, now);
+          .run(p.id, p.name, p.cat, JSON.stringify(p.subjects), JSON.stringify(p.tools), p.tagline, p.promptZh, p.promptEn, p.negative, p.tip, p.img, p.orig, itemStatus, now, now);
         added++;
       }
     } catch (e) {
@@ -384,7 +490,7 @@ function writeItems(items, overwrite, status) {
 }
 
 // 舊版匯入（格式不變：JSON 陣列／{items}，按 id 去重，overwrite 選項）
-app.post("/api/prompts/import", (req, res) => {
+app.post("/api/prompts/import", ownerAuth, rateLimit(20, 60 * 1000), (req, res) => {
   try {
     const items = Array.isArray(req.body) ? req.body : req.body.items;
     if (!Array.isArray(items)) return res.status(400).json({ error: "匯入檔案格式唔啱，要係提示詞嘅 JSON 陣列。" });
@@ -397,7 +503,7 @@ app.post("/api/prompts/import", (req, res) => {
 });
 
 // v2 預覽：檔案／貼上／網址 → 分類表，唔寫入
-app.post("/api/prompts/import/preview", async (req, res) => {
+app.post("/api/prompts/import/preview", ownerAuth, rateLimit(20, 60 * 1000), async (req, res) => {
   try {
     const items = await resolveImportItems(req.body || {});
     const overwrite = !!(req.body && req.body.overwrite);
@@ -408,7 +514,7 @@ app.post("/api/prompts/import/preview", async (req, res) => {
 });
 
 // v2 確認寫入：同預覽一樣嘅輸入，加 status（live 直接上架／pending 先放待審核）
-app.post("/api/prompts/import/confirm", async (req, res) => {
+app.post("/api/prompts/import/confirm", ownerAuth, rateLimit(20, 60 * 1000), async (req, res) => {
   try {
     const items = await resolveImportItems(req.body || {});
     const overwrite = !!(req.body && req.body.overwrite);
@@ -420,7 +526,7 @@ app.post("/api/prompts/import/confirm", async (req, res) => {
 });
 
 // 批准一項待審核 → live
-app.post("/api/prompts/:id/approve", (req, res) => {
+app.post("/api/prompts/:id/approve", ownerAuth, (req, res) => {
   const info = db.prepare("UPDATE prompts SET status='live', updated_at=? WHERE id=? AND status='pending'").run(nowIso(), req.params.id);
   if (info.changes === 0) return res.status(404).json({ error: "搵唔到呢款待審核風格（可能已經批准或刪除）。" });
   res.json(rowToPrompt(db.prepare("SELECT * FROM prompts WHERE id = ?").get(req.params.id)));
@@ -428,29 +534,72 @@ app.post("/api/prompts/:id/approve", (req, res) => {
 
 // ----- 留言 API -----
 app.get("/api/messages", (req, res) => {
-  const rows = db.prepare("SELECT * FROM messages ORDER BY id DESC").all();
+  // v3：預設最多返 100 則，?limit= 可改（上限 500），留言多咗唔會一次過塞爆頁面
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
+  const rows = db.prepare("SELECT * FROM messages ORDER BY id DESC LIMIT ?").all(limit);
   res.json(rows);
 });
 
-app.post("/api/messages", (req, res) => {
+app.post("/api/messages", rateLimit(10, 60 * 1000), (req, res) => {
   try {
     const b = req.body || {};
-    const content = (b.content || "").trim();
+    const content = String(b.content || "").trim().slice(0, 2000);
     if (!content) return res.status(400).json({ error: "請填寫留言內容。" });
     let img = "";
     if (b.imgData) img = saveDataUrl(b.imgData, "msg");
     const info = db.prepare("INSERT INTO messages (name,content,img,created_at) VALUES (?,?,?,?)")
-      .run((b.name || "").trim(), content, img, nowIso());
+      .run(String(b.name || "").trim().slice(0, 30), content, img, nowIso());
     res.status(201).json(db.prepare("SELECT * FROM messages WHERE id = ?").get(info.lastInsertRowid));
   } catch (e) {
     res.status(400).json({ error: e.message || "留言失敗。" });
   }
 });
 
-app.delete("/api/messages/:id", (req, res) => {
+app.delete("/api/messages/:id", ownerAuth, (req, res) => {
+  const old = db.prepare("SELECT * FROM messages WHERE id = ?").get(req.params.id);
+  if (!old) return res.status(404).json({ error: "搵唔到呢則留言。" });
   const info = db.prepare("DELETE FROM messages WHERE id = ?").run(req.params.id);
   if (info.changes === 0) return res.status(404).json({ error: "搵唔到呢則留言。" });
+  deleteUploadFile(old.img);
   res.json({ ok: true });
+});
+
+// ---------- v3：完整備份／還原（提示詞 + 留言） ----------
+// 注意：備份 JSON 唔包括圖片檔本身，上載圖片要另外複製 public/uploads/ 先算完整備份。
+app.get("/api/backup", ownerAuth, (req, res) => {
+  const prompts = db.prepare("SELECT * FROM prompts ORDER BY created_at ASC, id ASC").all().map(rowToPrompt);
+  const messages = db.prepare("SELECT * FROM messages ORDER BY id ASC").all();
+  const d = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="photo-prompt-backup-${d}.json"`);
+  res.send(JSON.stringify({ version: VERSION, exported_at: new Date().toISOString(), prompts, messages }, null, 2));
+});
+app.post("/api/backup/restore", ownerAuth, rateLimit(10, 60 * 1000), (req, res) => {
+  try {
+    const body = req.body || {};
+    const promptItems = Array.isArray(body.prompts) ? body.prompts : (Array.isArray(body.items) ? body.items : null);
+    const overwrite = !!body.overwrite;
+    const result = { ok: true, prompts: null, messagesAdded: 0, messagesSkipped: 0, errors: [] };
+    if (promptItems) result.prompts = writeItems(promptItems, overwrite, null);
+    if (Array.isArray(body.messages)) {
+      const now = nowIso();
+      for (const m of body.messages) {
+        const content = String((m && m.content) || "").trim().slice(0, 2000);
+        if (!content) { result.messagesSkipped++; continue; }
+        const created = (m && m.created_at) || now;
+        const dup = db.prepare("SELECT id FROM messages WHERE content = ? AND created_at = ?").get(content, created);
+        if (dup) { result.messagesSkipped++; continue; }
+        db.prepare("INSERT INTO messages (name,content,img,created_at) VALUES (?,?,?,?)")
+          .run(String((m && m.name) || "").trim().slice(0, 30), content, String((m && m.img) || ""), created);
+        result.messagesAdded++;
+      }
+    }
+    if (!promptItems && !Array.isArray(body.messages))
+      return res.status(400).json({ error: "備份檔格式唔啱，要有 prompts 或 messages。" });
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message || "還原失敗。" });
+  }
 });
 
 // ----- 其他 -----
@@ -458,14 +607,15 @@ app.get("/api/health", (req, res) => {
   const n = db.prepare("SELECT COUNT(*) AS n FROM prompts").get().n;
   const m = db.prepare("SELECT COUNT(*) AS n FROM messages").get().n;
   const pend = db.prepare("SELECT COUNT(*) AS n FROM prompts WHERE status='pending'").get().n;
-  res.json({ ok: true, prompts: n, pending: pend, messages: m, db: "data/prompts.db" });
+  res.json({ ok: true, version: VERSION, prompts: n, pending: pend, messages: m,
+    uptime: Math.floor(process.uptime()), ownerAuth: !!OWNER_PASSWORD, db: "data/prompts.db" });
 });
 
 app.get("/", (req, res) => res.sendFile(path.join(ROOT, "public", "index.html")));
 
 app.listen(PORT, () => {
   const n = db.prepare("SELECT COUNT(*) AS n FROM prompts").get().n;
-  console.log(`照片提示詞網站已啟動：http://localhost:${PORT}`);
+  console.log(`照片提示詞網站 v${VERSION} 已啟動：http://localhost:${PORT}`);
   console.log(`題庫現有 ${n} 款風格，資料庫：${DB_PATH}`);
   console.log("按 Ctrl+C 停止伺服器。");
 });

@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>照片提示詞網站</title>
+<meta name="description" content="12 款照片風格提示詞：揀風格、複製中英文提示詞，貼去 ChatGPT、Gemini、即夢等生圖工具，改造你嘅相。">
+<meta property="og:title" content="照片提示詞網站">
+<meta property="og:description" content="揀風格 → 複製提示詞 → 貼去生圖工具 → 出圖。本站只提供提示詞，唔提供生圖。">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23d96c4f'/%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle' fill='white'%3E%E7%9B%B8%3C/text%3E%3C/svg%3E">
 <style>
   :root{--ink:#22201d;--muted:#6b655c;--paper:#fdf9f0;--card:#fff;--line:#e8dfd2;--accent:#d96c4f;--accent2:#3f7d6b;--soft:#f5ecdd}
   *{box-sizing:border-box}
@@ -28,7 +33,7 @@
   .count{color:var(--muted);font-size:14px;margin:0 0 12px}
   .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
-  .ba{position:relative;aspect-ratio:4/3;overflow:hidden;background:#e9e2d6;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:none}
+  .ba{position:relative;aspect-ratio:4/3;overflow:hidden;background:#e9e2d6;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:pan-y}
   .ba img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
   .ba img.ba-before{opacity:0;pointer-events:none}
   .ba.show-orig img.ba-before{opacity:1}
@@ -82,7 +87,7 @@
     .card-body h3{font-size:16px}
     .row2{grid-template-columns:1fr}
   }
-  @media (max-width:400px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:480px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -97,6 +102,7 @@
 <main id="view"></main>
 <footer>
   <span class="owner-link" id="owner-trigger">照片提示詞網站 — 揀風格，複製提示詞，改造你嘅相</span>
+<div style="margin-top:6px">版本 <span class="app-version">v1.2.0</span></div>
   <div id="owner-hint" class="hidden" style="margin-top:8px"><button class="btn small" id="open-admin">開啟站長工具</button></div>
 </footer>
 <div class="toast" id="toast"></div>
@@ -111,10 +117,23 @@ let TOAST_T;
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(TOAST_T); TOAST_T=setTimeout(()=>t.classList.remove("show"),1800); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 async function api(path, opts){
-  const r = await fetch(path, Object.assign({headers:{"Content-Type":"application/json"}}, opts||{}));
-  const data = await r.json().catch(()=>({}));
-  if(!r.ok) throw new Error(data.error || ("請求失敗（"+r.status+"）"));
-  return data;
+const headers = {"Content-Type":"application/json"};
+const pin = sessionStorage.getItem("ownerPin");
+if(pin) headers["X-Owner-Pin"] = pin;
+const r = await fetch(path, Object.assign({headers}, opts||{}));
+const data = await r.json().catch(()=>({}));
+if(!r.ok){
+if(r.status===401 && data.needPin){ sessionStorage.removeItem("ownerPin"); }
+throw new Error(data.error || ("請求失敗（"+r.status+"）"));
+}
+return data;
+}
+async function showVersion(){
+try{
+const h = await fetch("/api/health").then(r=>r.json());
+if(h.version) $$(".app-version").forEach(el=>{ el.textContent = "v"+h.version; });
+return h;
+}catch(e){ return null; }
 }
 function copyText(text, btn){
   const done = ()=>{ if(btn){ const old=btn.textContent; btn.textContent="已複製"; btn.disabled=true; setTimeout(()=>{btn.textContent=old; btn.disabled=false;},1800);} toast("已複製"); };
@@ -127,7 +146,13 @@ function fallbackCopy(text, done){
   try{ document.execCommand("copy"); done(); }catch(e){ toast("複製失敗，請手動複製"); }
   document.body.removeChild(ta);
 }
-function fullCopyText(p){ return [p.promptZh, p.promptEn, p.negative].filter(Boolean).join("\n\n"); }
+function fullCopyText(p){
+const parts = [];
+if(p.promptZh) parts.push("【中文提示詞】\n" + p.promptZh);
+if(p.promptEn) parts.push("【English prompt】\n" + p.promptEn);
+if(p.negative) parts.push("【Negative prompt】\n" + p.negative);
+return parts.join("\n\n");
+}
 function origOf(p){ return p.orig || SHARED_ORIG; }
 function imgOf(p){ return p.img || ""; }
 
@@ -164,13 +189,16 @@ function bindCompare(scope){
 }
 
 /* ---------- 首頁 ---------- */
-let state = { q:"", cat:"全部", tool:"全部" };
+let state = { q:"", cat:"全部", tool:"全部", sort:"new" };
+let adminQ = "";
 async function loadPrompts(){
   const params = new URLSearchParams();
   if(state.q) params.set("q", state.q);
   if(state.cat && state.cat!=="全部") params.set("cat", state.cat);
   if(state.tool && state.tool!=="全部") params.set("tool", state.tool);
   ALL = await api("/api/prompts?"+params.toString());
+if(state.sort==="new") ALL = ALL.slice().reverse();
+else if(state.sort==="name") ALL = ALL.slice().sort((a,b)=>String(a.name).localeCompare(String(b.name), "zh-Hant"));
 }
 function cardHTML(p){
   return `<article class="card" data-id="${esc(p.id)}">
@@ -186,13 +214,14 @@ function cardHTML(p){
     </div></article>`;
 }
 function homeHTML(){
-  const cats = ["全部","動畫","繪畫","攝影","數碼"];
-  const tools = ["全部","ChatGPT","Gemini","即夢","Midjourney"];
+  const cats = ["全部", ...new Set(ALL.map(p=>p.cat).filter(Boolean))];
+const tools = ["全部", ...new Set(ALL.flatMap(p=>p.tools||[]).filter(Boolean))];
   return `
   <div class="toolbar">
     <input type="search" id="q" placeholder="搜尋風格、提示詞、工具…" value="${esc(state.q)}">
     <select id="tool">${tools.map(t=>`<option ${t===state.tool?"selected":""}>${esc(t)}</option>`).join("")}</select>
-    <button class="btn ghost" id="random">隨機一款</button>
+    <select id="sort" aria-label="排序"><option value="new">最新先</option><option value="old">最舊先</option><option value="name">名稱 A–Z</option></select>
+<button class="btn ghost" id="random">隨機一款</button>
   </div>
   <div class="pills">${cats.map(c=>`<button class="pill ${c===state.cat?"on":""}" data-cat="${esc(c)}">${esc(c)}</button>`).join("")}</div>
   <p class="count">共 ${ALL.length} 款風格 — 㩒住幅圖睇原相；撳卡上面嘅「複製提示詞」即刻複製，撳入去就睇到詳情。</p>
@@ -218,6 +247,8 @@ function bindHome(){
   let deb;
   q.addEventListener("input", ()=>{ clearTimeout(deb); deb=setTimeout(()=>{ state.q=q.value.trim(); render(); }, 300); });
   $("#tool").addEventListener("change", e=>{ state.tool=e.target.value; render(); });
+$("#sort").addEventListener("change", e=>{ state.sort=e.target.value; render(); });
+const sortSel = $("#sort"); if(sortSel) sortSel.value = state.sort;
   $$("[data-cat]").forEach(b=>b.addEventListener("click", ()=>{ state.cat=b.getAttribute("data-cat"); render(); }));
   $("#random").addEventListener("click", ()=>{
     if(!ALL.length) return;
@@ -283,7 +314,7 @@ function detailHTML(p){
   <h2 style="margin:12px 0 0">${esc(p.name)}</h2>
   <p class="tagline">${esc(p.tagline||"")}</p>
   <div class="chips">${(p.tools||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</div>
-  <div style="margin:14px 0"><button class="btn" id="copy-all">一鍵複製全部</button></div>
+  <div style="margin:14px 0;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="copy-all">一鍵複製全部</button><button class="btn ghost" id="copy-link">複製呢款連結</button></div>
   ${sec("中文提示詞", p.promptZh)}
   ${sec("英文提示詞", p.promptEn)}
   ${sec("負面提示詞", p.negative)}
@@ -293,6 +324,7 @@ function detailHTML(p){
 function bindDetail(p){
   $("#back").addEventListener("click", ()=>{ location.hash="#/"; });
   $("#copy-all").addEventListener("click", e=>copyText(fullCopyText(p), e.currentTarget));
+$("#copy-link").addEventListener("click", e=>copyText(location.href, e.currentTarget));
   $$("[data-copy-one]").forEach(b=>b.addEventListener("click", e=>copyText(b.getAttribute("data-copy-one"), e.currentTarget)));
   bindCompare($("#view"));
 }
@@ -302,16 +334,22 @@ function adminHTML(){
   return `
   <p><button class="btn ghost" id="back">← 返回首頁</button> <button class="btn ghost" id="hide-admin">用完隱藏返</button></p>
   <h2>站長工具</h2>
+<p class="note">版本 <span class="app-version">v1.2.0</span></p>
   <p class="note">呢度加、改、刪嘅提示詞會直接存入網站資料庫，加完即刻所有人睇到。唔使再匯出 JSON 俾人合併。</p>
+<p class="note hidden" id="owner-auth-warning" style="color:#a33d1f"><b>⚠️ 未設定站長密碼：</b>任何人撳到呢個入口都可以改題庫、刪留言。想鎖起佢，喺伺服器設定環境變數 <code>OWNER_PASSWORD=你嘅密碼</code> 再重啟（見 README「站長密碼」一節）。</p>
   <section class="block">
     <h2>新增 / 編輯提示詞</h2>
     <form id="prompt-form">
       <input type="hidden" id="f-id">
       <div class="row2">
-        <div><label>風格名稱 *</label><input id="f-name" required maxlength="30" placeholder="例如：黏土風"></div>
+        <div><label>風格名稱 *</label><input id="f-name" required maxlength="60" placeholder="例如：黏土風"></div>
         <div><label>分類</label><select id="f-cat"><option>動畫</option><option>繪畫</option><option>攝影</option><option>數碼</option></select></div>
       </div>
-      <label>一句話效果</label><input id="f-tagline" maxlength="80">
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:14px">
+<label><input type="radio" name="f-status" value="live" checked> 直接上架</label>
+<label><input type="radio" name="f-status" value="pending"> 先放待審核</label>
+</div>
+<label>一句話效果</label><input id="f-tagline" maxlength="80">
       <label>中文提示詞 *</label><textarea id="f-zh"></textarea>
       <label>英文提示詞</label><textarea id="f-en"></textarea>
       <label>負面提示詞</label><textarea id="f-neg"></textarea>
@@ -333,9 +371,13 @@ function adminHTML(){
     <p class="note">匯出會下載全部提示詞嘅 JSON（格式不變，可同 Muse 版互相同步）。匯入支援 JSON 檔案、CSV 檔案、貼上文字、貼網址（GitHub raw 等 JSON 網址）：先預覽分類，確認先寫入，一行錯唔會令成批失敗。CSV 欄位：name、cat、promptZh、promptEn、negative、tools（用 | 分隔）、subjects、tagline、tip、img；Excel 另存 CSV 要揀 UTF-8。</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button class="btn ghost" id="export-json">匯出 JSON</button>
+<button class="btn ghost" id="backup-download">下載完整備份（提示詞＋留言）</button>
+<label class="btn ghost" style="cursor:pointer">還原備份檔<input type="file" id="restore-file" accept="application/json,.json" style="display:none"></label>
       <label class="btn ghost" style="cursor:pointer">揀檔案（.json／.csv）<input type="file" id="import-file" accept="application/json,.json,text/csv,.csv" style="display:none"></label>
     </div>
-    <label>貼上 JSON 或 CSV 文字</label>
+    <p class="note" style="margin-top:8px">完整備份 JSON 包括提示詞同留言，但<b>唔包括圖片檔</b>：上載圖片要另外複製 <code>public/uploads/</code> 先算完整備份（見 README「備份方法」）。</p>
+<div id="restore-report" class="note" style="margin-top:8px"></div>
+<label>貼上 JSON 或 CSV 文字</label>
     <textarea id="import-text" placeholder="貼上 JSON 陣列，或者 CSV（第一行係欄位名）"></textarea>
     <label>由網址匯入（GitHub raw 等 JSON 網址）</label>
     <input id="import-url" placeholder="例如：https://raw.githubusercontent.com/…/prompts.json">
@@ -356,6 +398,7 @@ function adminHTML(){
   </section>
   <section class="block">
     <h2>全部提示詞（<span id="admin-count"></span> 款）</h2>
+<input type="search" id="admin-q" placeholder="篩選：打風格名…" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:15px;margin-bottom:8px">
     <div style="overflow-x:auto"><table class="admin"><thead><tr><th>風格</th><th>分類</th><th>工具</th><th>操作</th></tr></thead><tbody id="admin-list"></tbody></table></div>
   </section>
   <section class="block">
@@ -365,7 +408,9 @@ function adminHTML(){
 }
 function fillForm(p){
   $("#f-id").value = p ? p.id : "";
-  $("#f-name").value = p ? p.name : "";
+  const st = (p && p.status === "pending") ? "pending" : "live";
+$$('input[name="f-status"]').forEach(r=>{ r.checked = (r.value === st); });
+$("#f-name").value = p ? p.name : "";
   $("#f-cat").value = p ? p.cat : "動畫";
   $("#f-tagline").value = p ? p.tagline : "";
   $("#f-zh").value = p ? p.promptZh : "";
@@ -381,14 +426,15 @@ function fillForm(p){
   window.scrollTo({top:0, behavior:"smooth"});
 }
 async function renderAdminList(){
-  const list = await api("/api/prompts?status=all");
-  $("#admin-count").textContent = list.length;
+  const all = await api("/api/prompts?status=all");
+const list = adminQ ? all.filter(p=>(p.name||"").toLowerCase().includes(adminQ.toLowerCase())) : all;
+$("#admin-count").textContent = all.length;
   $("#admin-list").innerHTML = list.map(p=>`<tr>
     <td>${esc(p.name)}${p.status==="pending" ? ' <span class="chip">待審核</span>' : ""}</td><td>${esc(p.cat)}</td><td>${esc((p.tools||[]).join("、"))}</td>
     <td style="white-space:nowrap"><button class="btn small" data-edit="${esc(p.id)}">編輯</button> <button class="btn small ghost" data-del="${esc(p.id)}">刪除</button></td>
   </tr>`).join("");
   $$("[data-edit]").forEach(b=>b.addEventListener("click", async ()=>{
-    const p = await api("/api/prompts/"+encodeURIComponent(b.getAttribute("data-edit")));
+    const p = await api("/api/prompts/"+encodeURIComponent(b.getAttribute("data-edit"))+"?status=all");
     fillForm(p); toast("已載入「"+p.name+"」去編輯");
   }));
   $$("[data-del]").forEach(b=>b.addEventListener("click", async ()=>{
@@ -440,16 +486,53 @@ function bindAdmin(){
   $("#prompt-form").addEventListener("submit", async e=>{
     e.preventDefault();
     const id = $("#f-id").value;
-    const body = {name:$("#f-name").value, cat:$("#f-cat").value, tagline:$("#f-tagline").value,
+    const stEl = document.querySelector('input[name="f-status"]:checked');
+const body = {name:$("#f-name").value, cat:$("#f-cat").value, tagline:$("#f-tagline").value,
       promptZh:$("#f-zh").value, promptEn:$("#f-en").value, negative:$("#f-neg").value, tip:$("#f-tip").value,
-      tools:$("#f-tools").value, subjects:$("#f-subjects").value, imgData, origData};
+      tools:$("#f-tools").value, subjects:$("#f-subjects").value, imgData, origData,
+status: stEl ? stEl.value : "live"};
     try{
       if(id){ await api("/api/prompts/"+encodeURIComponent(id), {method:"PUT", body:JSON.stringify(body)}); toast("已儲存"); }
       else { await api("/api/prompts", {method:"POST", body:JSON.stringify(body)}); toast("已新增"); }
       fillForm(null); imgData=""; origData=""; renderAdminList();
     }catch(err){ toast(err.message); }
   });
-  $("#export-json").addEventListener("click", ()=>{ window.open("/api/prompts/export", "_blank"); });
+  $("#export-json").addEventListener("click", async ()=>{
+try{
+const r = await fetch("/api/prompts/export", {headers: sessionStorage.getItem("ownerPin") ? {"X-Owner-Pin": sessionStorage.getItem("ownerPin")} : {}});
+if(!r.ok) throw new Error("匯出失敗（"+r.status+"）");
+const blob = await r.blob();
+const a = document.createElement("a");
+a.href = URL.createObjectURL(blob);
+a.download = "prompts-export-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + ".json";
+a.click(); URL.revokeObjectURL(a.href);
+}catch(err){ toast(err.message); }
+});
+$("#backup-download").addEventListener("click", async ()=>{
+try{
+const data = await api("/api/backup");
+const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+const a = document.createElement("a");
+a.href = URL.createObjectURL(blob);
+a.download = "photo-prompt-backup-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + ".json";
+a.click(); URL.revokeObjectURL(a.href);
+toast("完整備份已下載（唔包括圖片檔，記得另外複製 public/uploads/）");
+}catch(err){ toast(err.message); }
+});
+$("#restore-file").addEventListener("change", async ()=>{
+const f = $("#restore-file").files && $("#restore-file").files[0];
+if(!f) return;
+try{
+const data = JSON.parse(await f.text());
+const r = await api("/api/backup/restore", {method:"POST", body:JSON.stringify(Object.assign({}, data, {overwrite:false}))});
+const p = r.prompts || {};
+$("#restore-report").textContent = "還原完成：提示詞新增 " + (p.added||0) + "、更新 " + (p.updated||0) + "、跳過 " + (p.skipped||0) + "；留言新增 " + (r.messagesAdded||0) + "、跳過 " + (r.messagesSkipped||0) + "。圖片檔唔喺備份入面，要另外複製 public/uploads/。";
+toast("備份已還原"); renderAdminList();
+}catch(err){ toast("還原失敗：" + err.message); }
+$("#restore-file").value = "";
+});
+$("#admin-q").addEventListener("input", e=>{ adminQ = e.target.value.trim(); renderAdminList(); });
+showVersion().then(h=>{ if(h && !h.ownerAuth){ const w=$("#owner-auth-warning"); if(w) w.classList.remove("hidden"); } });
   let pendingPayload = null;
   const importStatus = ()=>{ const r = document.querySelector('input[name="import-status"]:checked'); return r ? r.value : "live"; };
   const collectPayload = async ()=>{
@@ -505,6 +588,14 @@ async function render(){
       view.innerHTML = detailHTML(p);
       bindDetail(p);
     } else if(hash === "#/owner"){
+const h = await showVersion();
+if(h && h.ownerAuth && !sessionStorage.getItem("ownerPin")){
+const pin = prompt("請輸入站長密碼：");
+if(!pin){ location.hash = "#/"; return; }
+sessionStorage.setItem("ownerPin", pin);
+try{ await api("/api/prompts?status=all"); }
+catch(err){ sessionStorage.removeItem("ownerPin"); toast("站長密碼唔啱"); location.hash = "#/"; return; }
+}
       view.innerHTML = adminHTML();
       bindAdmin();
     } else {
@@ -518,6 +609,7 @@ async function render(){
   window.scrollTo(0,0);
 }
 window.addEventListener("hashchange", render);
+showVersion();
 
 /* 站長隱藏入口：連撳頁底文字 5 下 */
 let ownerClicks = 0, ownerTimer = null;

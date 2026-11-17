@@ -1,5 +1,9 @@
 # 照片提示詞網站 — 獨立版（有資料庫）
 
+**版本：v1.2.0（2026-11-17）**｜更新日誌見 `CHANGELOG.md`。
+
+**版本號規則（以後每次更新都要跟）：每次改動都要升版本號，並同步更新 `package.json`、`VERSION` 檔案、`/api/health` 回傳、網站頁尾／站長工具顯示、同 `CHANGELOG.md`。詳情見 `CHANGELOG.md` 頂部。
+
 呢個係可以下載、自己保存、自己放上伺服器嘅獨立版。唔係 Muse 入面先用到嘅版本，成套程式連埋資料庫都喺呢個資料夾入面。
 
 ## 入面有乜
@@ -12,6 +16,7 @@
 - 留言板：可以寫留言、上載效果圖，上面寫明上載嘅圖會由站長審批，獲批有機會成為網站素材；留言存入資料庫
 - 站長工具：隱藏入口，入面可以直接喺網上新增、編輯、刪除提示詞，連原相、效果圖上載，加完即刻所有人睇到；仲有 JSON 匯入、匯出同留言管理
 - **v2 匯入**：匯入前預覽（新增／重複／更新／格式錯）、CSV 匯入、由網址匯入（GitHub raw 等 JSON 網址）、待審核狀態（前台只顯示已上架，待審核要站長批准先出現）
+- **v3（2026-11-17）**：可選站長密碼、完整備份／還原（提示詞＋留言）、動態分類／工具篩選＋排序、複製提示詞加標籤、手機版一欄＋捲動修正、SEO／favicon、CSV 加 `id`／`status`／`orig` 欄、刪除嗰陣清走舊上載圖。詳情見 `CHANGELOG.md`。
 
 ## v2 新功能：匯入前預覽、CSV、網址匯入、待審核
 
@@ -56,6 +61,43 @@ name,cat,promptZh,promptEn,negative,tools,subjects,tagline,tip,img
 - `GET /api/prompts?status=all|live|pending` — 預設只返 `live`（前台用）；站長工具用 `all`
 - `GET /api/prompts/pending` — 待審核清單
 - `POST /api/prompts/:id/approve` — 批准一項待審核，變 `live`
+
+## v3 新功能（v1.2.0）
+
+### 站長密碼（可選，但強烈建議設定）
+- 之前任何人撳到站長工具入口（`#/owner`）都可以改題庫、刪留言，今版可以鎖起佢。
+- 設定方法：啟動前加環境變數 `OWNER_PASSWORD`，例如：
+  ```bash
+  OWNER_PASSWORD=你嘅密碼 npm start
+  ```
+  用 pm2 嘅話，喺 `ecosystem.config.js` 入面加 `env: { OWNER_PASSWORD: "你嘅密碼" }`，或者 `OWNER_PASSWORD=你嘅密碼 pm2 start server.js --name photo-prompts`。
+- 設定咗之後，入站長工具要輸入一次密碼（記喺瀏覽器 session，閂分頁即忘）；所有寫入 API 都要帶 `X-Owner-Pin` 標頭，n8n 呼叫匯入 API 嗰陣記得加埋。
+- 未設定就沿用舊行為，站長工具頂部會顯示紅色警告。
+
+### 完整備份／還原
+- 站長工具「下載完整備份」：一次過下載提示詞＋留言嘅 JSON（`GET /api/backup`）。
+- 站長工具「還原備份檔」：揀返備份 JSON 就還原（`POST /api/backup/restore`），提示詞按編號／名稱去重，留言按內容＋日期去重。
+- **備份 JSON 唔包括圖片檔本身**：上載圖片要另外複製 `public/uploads/` 先算完整備份。
+
+### 前台改進
+- 分類、工具篩選由題庫實際資料動態生成，加新分類／新工具會自動出現；加排序（最新先／最舊先／名稱 A–Z）。
+- 「複製提示詞」會加埋標籤（中文提示詞／English prompt／Negative prompt）；詳情頁加「複製呢款連結」。
+- 手機窄屏改一欄；對比圖唔會鎖死上下捲動。
+
+## 由 v2 升級去 v3
+
+1. **先備份**：複製 `data/prompts.db` 同 `public/uploads/` 去安全嘅地方；最好順便喺站長工具撳「下載完整備份」，多一份提示詞＋留言嘅 JSON。
+2. 停咗舊版伺服器（`pm2 stop photo-prompts`，或者按 `Ctrl+C`）
+3. 將 v3 嘅檔案覆蓋去伺服器嗰個資料夾（**唔好覆蓋 `data/prompts.db`，你嘅題庫喺入面**；`public/uploads/` 入面嘅圖都唔好刪）
+4. 喺資料夾入面跑：
+   ```bash
+   npm install
+   pm2 restart photo-prompts
+   ```
+   （本地測試就用 `npm start`）
+5. v1／v2 舊資料庫啟動嗰陣會自動遷移（補 `status` 欄，現有提示詞全部設為 `live`），唔會唔見資料
+6. 檢查：開 `http://localhost:3000/api/health`，應該見到 `version: "1.2.0"`、`prompts` 數目同你之前一樣，`pending` 係 0
+7. （可選）設定 `OWNER_PASSWORD` 鎖起站長工具，見上面「站長密碼」一節
 
 ## 由 v1 升級去 v2
 
@@ -114,8 +156,8 @@ npm start
 
 成個網站嘅資料就係 `data/prompts.db` 一個檔案，加埋 `public/uploads/` 入面嘅圖。
 
-- 備份：複製 `data/prompts.db` 同 `public/uploads/` 去安全嘅地方就得。
-- 還原：停咗伺服器之後，將備份嘅 `prompts.db` 蓋返入 `data/`，將 `uploads/` 蓋返入 `public/`，再啟動。
+- 備份：複製 `data/prompts.db` 同 `public/uploads/` 去安全嘅地方就得；另外可以喺站長工具撳「下載完整備份」，攞多一份提示詞＋留言嘅 JSON（`GET /api/backup`）。
+- 還原：停咗伺服器之後，將備份嘅 `prompts.db` 蓋返入 `data/`，將 `uploads/` 蓋返入 `public/`，再啟動。或者唔停機都得：喺站長工具揀「還原備份檔」，上載返備份 JSON（`POST /api/backup/restore`）— 提示詞同留言會還原，但圖片檔唔喺 JSON 入面，`public/uploads/` 依然要手動複製返。
 - 搬機：成個資料夾搬過去，新機 `npm install` 再 `npm start` 就得，資料庫檔案跟住去。
 
 另外，站長工具入面有「匯出 JSON」，可以匯出全部提示詞做備份，或者搬去另一套系統。
@@ -168,7 +210,9 @@ GitHub Pages 跑唔到 Node.js 後端，所以呢個有資料庫嘅版唔可以�
 ```
 photo-prompt-standalone-db/
 ├── server.js            伺服器（Express + SQLite）
-├── package.json         依賴同啟動指令
+├── package.json         依賴同啟動指令（版本號喺呢度）
+├── VERSION              版本號（得一行，伺服器同網站顯示都讀佢）
+├── CHANGELOG.md         更新日誌（每次更新都要加新版本一節）
 ├── seed.json            12 款種子風格
 ├── README.md            呢份說明
 ├── data/
